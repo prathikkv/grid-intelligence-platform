@@ -1,0 +1,421 @@
+# .gitignore - Enterprise Pharmaceutical Intelligence Platform
+
+# ==============================
+# NODE.JS DEPENDENCIES
+# ==============================
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# ==============================
+# ENVIRONMENT & CONFIGURATION
+# ==============================
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging
+
+# Configuration files with sensitive data
+config/production.json
+config/staging.json
+config/local.json
+secrets.json
+
+# Database configuration
+database.json
+db-config.json
+
+# API keys and credentials
+api-keys.json
+credentials.json
+service-account.json
+firebase-adminsdk-*.json
+
+# ==============================
+# BUILD OUTPUTS
+# ==============================
+
+# Vite build output
+dist/
+build/
+
+# Static assets
+public/static/generated/
+public/assets/generated/
+
+# Bundle analysis
+bundle-report.html
+bundle-stats.json
+
+# ==============================
+# DEVELOPMENT TOOLS
+# ==============================
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# VS Code settings (keep workspace settings but ignore user settings)
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ==============================
+# TESTING
+# ==============================
+
+# Test results
+test-results/
+coverage/
+.nyc_output/
+junit.xml
+
+# Jest
+jest-coverage/
+
+# Cypress
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
+
+# Playwright
+playwright-report/
+test-results/
+
+# ==============================
+# LOGGING
+# ==============================
+
+# Log files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Application logs
+app.log
+error.log
+combined.log
+access.log
+
+# ==============================
+# CACHING
+# ==============================
+
+# Cache directories
+.cache/
+.parcel-cache/
+.vite/
+
+# ESLint cache
+.eslintcache
+
+# Prettier cache
+.prettier-cache
+
+# Next.js cache (if applicable)
+.next/
+
+# Nuxt.js cache (if applicable)
+.nuxt/
+
+# ==============================
+# DATABASES
+# ==============================
+
+# SQLite databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Database dumps
+*.sql
+*.dump
+
+# ==============================
+# TEMPORARY FILES
+# ==============================
+
+# Temporary folders
+tmp/
+temp/
+.tmp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ==============================
+# SECURITY & CERTIFICATES
+# ==============================
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+
+# SSH keys
+id_rsa
+id_rsa.pub
+known_hosts
+
+# GPG keys
+*.gpg
+*.asc
+
+# ==============================
+# CLOUD & DEPLOYMENT
+# ==============================
+
+# Vercel
+.vercel
+
+# Netlify
+.netlify/
+
+# AWS
+.aws/
+
+# Docker
+.dockerignore
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+
+# Kubernetes
+*.kubeconfig
+
+# ==============================
+# PACKAGE MANAGERS
+# ==============================
+
+# Yarn
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+yarn.lock
+
+# NPM
+package-lock.json
+.npm/
+
+# PNPM
+pnpm-lock.yaml
+
+# ==============================
+# MONITORING & ANALYTICS
+# ==============================
+
+# Error reporting
+sentry.properties
+
+# Performance monitoring
+newrelic.js
+newrelic_agent.log
+
+# ==============================
+# DOCUMENTATION
+# ==============================
+
+# Documentation build
+docs/build/
+docs/dist/
+
+# API documentation
+api-docs/generated/
+
+# ==============================
+# ENTERPRISE SPECIFIC
+# ==============================
+
+# License files with sensitive information
+license.key
+enterprise.license
+
+# Audit reports
+audit-report.json
+security-scan.json
+
+# Compliance documents
+compliance-report.pdf
+sox-audit.xlsx
+
+# ==============================
+# DEVELOPMENT DATABASES
+# ==============================
+
+# Local development databases
+dev.db
+test.db
+local.db
+
+# Database migrations (keep structure, ignore data)
+migrations/data/
+seeds/generated/
+
+# ==============================
+# BACKUP FILES
+# ==============================
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# ==============================
+# MISCELLANEOUS
+# ==============================
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Storybook build outputs
+storybook-static/
+
+# Rush files
+common/temp/
+
+# ==============================
+# PHARMACEUTICAL SPECIFIC
+# ==============================
+
+# Pharmaceutical data exports (potentially sensitive)
+exports/clinical-data/
+exports/patient-data/
+exports/regulatory-data/
+
+# Research files
+research-notes/
+analysis-results/
+proprietary-data/
+
+# Regulatory submissions
+submissions/
+regulatory-documents/
+
+# Clinical trial data
+trial-data/
+patient-records/
+
+# ==============================
+# MACHINE LEARNING
+# ==============================
+
+# Model files
+*.model
+*.pkl
+*.h5
+models/trained/
+
+# Training data
+training-data/
+datasets/large/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# ==============================
+# PERFORMANCE MONITORING
+# ==============================
+
+# Lighthouse reports
+lighthouse-report.html
+lighthouse-report.json
+
+# Bundle analyzer reports
+bundle-analyzer-report.html
+
+# Performance budgets
+performance-budget.json
+
+# ==============================
+# CUSTOM PATTERNS
+# ==============================
+
+# Add any project-specific patterns below
+# Example:
+# /custom-folder/
+# *.custom-extension

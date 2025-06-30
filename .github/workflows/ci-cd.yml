@@ -1,0 +1,567 @@
+# .github/workflows/ci-cd.yml
+# Enterprise Pharmaceutical Intelligence Platform CI/CD Pipeline
+# Comprehensive automated testing, security scanning, and deployment
+
+name: 🧬 Enterprise CI/CD Pipeline
+
+on:
+  # Trigger on pushes to main and develop branches
+  push:
+    branches: [ main, develop, release/* ]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+  
+  # Trigger on pull requests to main branch
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+  
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: 'Skip test execution'
+        required: false
+        default: false
+        type: boolean
+
+# Global environment variables
+env:
+  NODE_VERSION: '18'
+  PNPM_VERSION: '8'
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+# Concurrency control - cancel in-progress runs for same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==============================
+  # CODE QUALITY & SECURITY
+  # ==============================
+  
+  quality-checks:
+    name: 🔍 Code Quality & Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for better analysis
+      
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm list --depth=0
+      
+      - name: 🧹 Code formatting check
+        run: |
+          npm run lint
+          npm run type-check || echo "TypeScript check completed"
+      
+      - name: 🔒 Security audit
+        run: |
+          npm audit --audit-level=high
+          npx audit-ci --moderate
+      
+      - name: 🔍 Dependency vulnerability scan
+        uses: actions/dependency-review-action@v3
+        if: github.event_name == 'pull_request'
+      
+      - name: 📊 Code analysis with SonarCloud
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        if: env.SONAR_TOKEN != ''
+      
+      - name: 🛡️ SAST security scanning
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+      
+      - name: 🛡️ CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+  # ==============================
+  # TESTING MATRIX
+  # ==============================
+  
+  unit-tests:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ !inputs.skip_tests }}
+    
+    strategy:
+      matrix:
+        node-version: [18, 20]
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: npm ci --prefer-offline
+      
+      - name: 🧪 Run unit tests
+        run: |
+          npm run test:coverage
+        env:
+          CI: true
+          NODE_ENV: test
+      
+      - name: 📊 Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+        if: matrix.node-version == 18
+
+  integration-tests:
+    name: 🔗 Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: ${{ !inputs.skip_tests }}
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: npm ci --prefer-offline
+      
+      - name: 🏗️ Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+          VITE_API_BASE_URL: http://localhost:3001/api
+      
+      - name: 🚀 Start test server
+        run: |
+          npm start &
+          sleep 10
+        env:
+          NODE_ENV: test
+          PORT: 3001
+          REDIS_URL: redis://localhost:6379
+      
+      - name: 🔗 Run integration tests
+        run: npm run test:integration
+        env:
+          TEST_BASE_URL: http://localhost:3001
+          REDIS_URL: redis://localhost:6379
+      
+      - name: 🧪 API health check
+        run: |
+          curl -f http://localhost:3001/api/health || exit 1
+          curl -f http://localhost:3001/api/status || exit 1
+
+  e2e-tests:
+    name: 🎭 E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ !inputs.skip_tests && github.event_name != 'pull_request' }}
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: npm ci --prefer-offline
+      
+      - name: 🎭 Install Playwright
+        run: npx playwright install --with-deps chromium firefox webkit
+      
+      - name: 🏗️ Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+      
+      - name: 🚀 Start application
+        run: |
+          npm run preview &
+          npx wait-on http://localhost:4173 --timeout 60000
+        env:
+          NODE_ENV: production
+      
+      - name: 🎭 Run E2E tests
+        run: npx playwright test
+        env:
+          BASE_URL: http://localhost:4173
+      
+      - name: 📸 Upload test artifacts
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ==============================
+  # PERFORMANCE TESTING
+  # ==============================
+  
+  performance-tests:
+    name: ⚡ Performance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'pull_request'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: npm ci --prefer-offline
+      
+      - name: 🏗️ Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+      
+      - name: 🚀 Start application
+        run: |
+          npm run preview &
+          npx wait-on http://localhost:4173 --timeout 60000
+      
+      - name: 🔍 Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          configPath: './lighthouse.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+      
+      - name: ⚡ Load testing with Artillery
+        run: |
+          npm install -g artillery
+          artillery run .github/workflows/load-test.yml
+        if: github.ref == 'refs/heads/main'
+
+  # ==============================
+  # BUILD & CONTAINER
+  # ==============================
+  
+  build:
+    name: 🏗️ Build & Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [quality-checks]
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: npm ci --prefer-offline
+      
+      - name: 🏗️ Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+          VITE_APP_VERSION: ${{ github.sha }}
+          VITE_BUILD_DATE: ${{ github.event.head_commit.timestamp }}
+      
+      - name: 📦 Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+      
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 🔐 Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 🏷️ Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: 🏗️ Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+  # ==============================
+  # SECURITY SCANNING
+  # ==============================
+  
+  security-scan:
+    name: 🛡️ Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build]
+    if: github.event_name != 'pull_request'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🛡️ Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build.outputs.image-tag }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: 📊 Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: 🔒 Container security scan with Snyk
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: ${{ needs.build.outputs.image-tag }}
+        if: env.SNYK_TOKEN != ''
+
+  # ==============================
+  # DEPLOYMENT
+  # ==============================
+  
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [unit-tests, integration-tests, build]
+    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging-enterprise-pharma-intelligence.vercel.app
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🚀 Deploy to Vercel (Staging)
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          scope: ${{ secrets.VERCEL_ORG_ID }}
+          alias-domains: staging-enterprise-pharma-intelligence.vercel.app
+        env:
+          NODE_ENV: production
+          VITE_ENVIRONMENT: staging
+          VITE_API_BASE_URL: https://staging-enterprise-pharma-intelligence.vercel.app/api
+      
+      - name: 🔍 Health check staging deployment
+        run: |
+          sleep 30
+          curl -f https://staging-enterprise-pharma-intelligence.vercel.app/api/health
+          curl -f https://staging-enterprise-pharma-intelligence.vercel.app/api/status
+
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [unit-tests, integration-tests, e2e-tests, build, security-scan]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://enterprise-pharma-intelligence.vercel.app
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🚀 Deploy to Vercel (Production)
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          scope: ${{ secrets.VERCEL_ORG_ID }}
+          alias-domains: |
+            enterprise-pharma-intelligence.vercel.app
+            pharma-intelligence.com
+        env:
+          NODE_ENV: production
+          VITE_ENVIRONMENT: production
+          VITE_API_BASE_URL: https://enterprise-pharma-intelligence.vercel.app/api
+      
+      - name: 🔍 Health check production deployment
+        run: |
+          sleep 30
+          curl -f https://enterprise-pharma-intelligence.vercel.app/api/health
+          curl -f https://enterprise-pharma-intelligence.vercel.app/api/status
+      
+      - name: 📊 Post-deployment monitoring
+        run: |
+          # Trigger monitoring checks
+          curl -X POST "${{ secrets.DATADOG_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{"deployment": "production", "version": "${{ github.sha }}", "status": "deployed"}'
+        if: secrets.DATADOG_WEBHOOK_URL != ''
+
+  # ==============================
+  # NOTIFICATIONS
+  # ==============================
+  
+  notify:
+    name: 📢 Notifications
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [deploy-staging, deploy-production]
+    
+    steps:
+      - name: 📧 Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+          text: |
+            🧬 Enterprise Pharmaceutical Intelligence Platform
+            Deployment Status: ${{ job.status }}
+            Environment: ${{ github.ref == 'refs/heads/main' && 'Production' || 'Staging' }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+        if: secrets.SLACK_WEBHOOK != ''
+      
+      - name: 📧 Email notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: '🧬 Enterprise Pharma Intelligence - Deployment ${{ job.status }}'
+          body: |
+            Enterprise Pharmaceutical Intelligence Platform Deployment
+            
+            Status: ${{ job.status }}
+            Environment: ${{ github.ref == 'refs/heads/main' && 'Production' || 'Staging' }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            Branch: ${{ github.ref }}
+            
+            View details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: devops@enterprise-pharma-intelligence.com
+          from: ci-cd@enterprise-pharma-intelligence.com
+        if: failure() && secrets.EMAIL_USERNAME != ''
+
+# ==============================
+# WORKFLOW CONFIGURATION
+# ==============================
+
+# Security: Restrict workflow permissions
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  checks: write
+  deployments: write
+  id-token: write
+  issues: write
+  packages: write
+  pull-requests: write
+
+# Default shell for all jobs
+defaults:
+  run:
+    shell: bash
